@@ -33,7 +33,8 @@ Ce produit s'adresse en priorité à la **Direction Logistique (Head of Logistic
 | 2 | **Engine d'Optimisation des Commandes** | Consolidation automatique des commandes par zone/fenêtre de livraison/compatibilité de charge, sélection intelligente du véhicule (volume/poids → typologie flotte), taux de remplissage (bin packing 2D/3D). |
 | 3 | **Dynamic Costing & Configurateur de Tarifs** | Grilles tarifaires paramétrables (trajet, stockage, manutention), comparatif coût théorique vs coût prestataire, alertes de dépassement de seuil. |
 | 4 | **Facturation Intragroupe & Pré-Facturation** | Génération automatique des pré-factures, 3-way matching (Ordre de Transport / Prestation Réalisée / Pré-facture), workflow de validation des écarts. |
-| 5 | **ERP Integration Layer** | API REST/Webhooks pour échange inbound (commandes, réassorts, transferts) et outbound (statuts, coûts imputés, pré-factures validées) avec l'ERP KITEA (SAP, Dynamics, Oracle, Odoo...). |
+| 5 | **ERP Integration Layer** | API REST/Webhooks pour échange inbound (commandes, réassorts, transferts) et outbound (statuts, coûts imputés, pré-factures validées) avec l'ERP KITEA (SAP, Dynamics, Oracle, Odoo...). Import de commandes en masse depuis l'ERP (lot JSON ou fichier Excel). |
+| 6 | **Import / Export Excel** | Écran Commandes : export `.xlsx` du carnet de commandes, import en masse (modèle Excel fourni) pour la saisie manuelle ou la reprise de données. |
 
 ## 4. Architecture technique
 
@@ -173,6 +174,20 @@ npm run dev                # démarre l'app sur http://localhost:5173
 | `VITE_API_BASE_URL` | frontend/.env | URL de base de l'API consommée par le frontend |
 | `VITE_MAP_TILE_URL` | frontend/.env | URL des tuiles cartographiques (OSM/Mapbox) |
 
+### Import / Export de commandes
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/orders/export` | Export Excel du carnet de commandes (filtrable par statut) |
+| `GET /api/orders/import/template` | Modèle Excel vierge pour l'import manuel |
+| `POST /api/orders/import` | Import en masse (multipart, champ `file`, .xlsx) |
+| `POST /api/erp/webhooks/orders` | Webhook inbound ERP — une commande, temps réel |
+| `POST /api/erp/import/orders` | Import en masse depuis l'ERP — lot JSON (`{ orders: [...] }`) |
+| `POST /api/erp/import/orders/excel` | Import en masse depuis l'ERP — fichier Excel (multipart, champ `file`) |
+| `GET /api/erp/import/orders/template` | Modèle Excel attendu pour un export ERP |
+
+Les sites d'origine/destination sont référencés par leur `code` (ex: `KTA-WH-CASA-KSH`), pas par leur UUID interne — cohérent avec le `code` unique du modèle `Location`. Chaque ligne d'un import est traitée indépendamment : une ligne invalide ou une référence de commande déjà existante est reportée dans la réponse (`errors[]`) sans bloquer le reste du lot.
+
 ## 7. Déploiement (Vercel + Render + Supabase)
 
 Configuration cible pour un environnement de test/démo :
@@ -214,7 +229,7 @@ Le fichier [`vercel.json`](vercel.json) à la racine pointe le build sur `fronte
 - [ ] **Phase 2** — Module Costing : configurateur de tarifs (CRUD grilles), calcul du coût théorique, comparatif vs coût prestataire, alertes de seuil.
 - [ ] **Phase 3** — Module Optimisation : algorithme de consolidation des commandes, sélection du véhicule, indicateur de taux de remplissage.
 - [ ] **Phase 4** — Module Pré-Facturation : génération automatique, workflow de validation, 3-way matching, exports comptables.
-- [ ] **Phase 5** — Intégration ERP : connecteurs inbound/outbound, authentification API, mapping des référentiels (magasins, produits, comptes).
+- [x] **Phase 5 (partiel)** — Intégration ERP : webhook inbound temps réel + import en masse (lot JSON ou Excel) opérationnels ; authentification API et mapping avancé des référentiels restent à faire.
 - [ ] **Phase 6** — Durcissement : authentification/rôles (RBAC), audit trail, tests end-to-end, observabilité (logs/metrics), déploiement CI/CD.
 
 ## 9. Contribution

@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/Layout/Sidebar";
 import { MapPage } from "./pages/MapPage";
+import { OrdersPage } from "./pages/OrdersPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ConsolidationPage } from "./pages/ConsolidationPage";
 import { PreInvoicingPage } from "./pages/PreInvoicingPage";
@@ -14,6 +15,7 @@ export default function App() {
         <main className="flex-1 min-h-screen bg-slate-50">
           <Routes>
             <Route path="/" element={<MapPage />} />
+            <Route path="/orders" element={<OrdersPage />} />
             <Route path="/consolidation" element={<ConsolidationPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/pre-invoicing" element={<PreInvoicingPage />} />

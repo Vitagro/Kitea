@@ -1,8 +1,9 @@
-import { Truck, Map, SlidersHorizontal, FileStack, PlugZap } from "lucide-react";
+import { Truck, Map, SlidersHorizontal, FileStack, PlugZap, PackageSearch } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
   { to: "/", label: "Cartographie du réseau", icon: Map },
+  { to: "/orders", label: "Commandes", icon: PackageSearch },
   { to: "/consolidation", label: "Consolidation & Flotte", icon: Truck },
   { to: "/pricing", label: "Configurateur de tarifs", icon: SlidersHorizontal },
   { to: "/pre-invoicing", label: "Pré-Facturation", icon: FileStack },
