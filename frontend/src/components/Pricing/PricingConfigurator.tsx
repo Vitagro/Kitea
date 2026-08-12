@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { pricingService } from "../../services/pricingService";
-import { PricingRule, PricingRuleType, PricingSource } from "../../types";
+import { vehicleTypesService } from "../../services/vehicleTypesService";
+import { carriersService } from "../../services/carriersService";
+import { locationsService } from "../../services/locationsService";
+import { Carrier, Location, PricingRule, PricingRuleType, PricingSource, VehicleType } from "../../types";
 
 const RULE_TYPE_LABELS: Record<PricingRuleType, string> = {
   TRANSPORT_FLAT_ZONE: "Transport - Forfait par zone",
@@ -13,11 +16,16 @@ const RULE_TYPE_LABELS: Record<PricingRuleType, string> = {
   HANDLING_OUT: "Manutention - Sortie",
 };
 
+const STORAGE_RULE_TYPES: PricingRuleType[] = ["STORAGE_PER_PALLET_DAY", "STORAGE_PER_M2_MONTH"];
+
 const EMPTY_FORM = {
   label: "",
   ruleType: "TRANSPORT_PER_KM" as PricingRuleType,
   source: "INTERNAL" as PricingSource,
   zoneName: "",
+  carrierId: "",
+  vehicleTypeId: "",
+  storageLocationId: "",
   unitPrice: "",
   currency: "MAD",
   validFrom: new Date().toISOString().slice(0, 10),
@@ -27,6 +35,9 @@ const EMPTY_FORM = {
 // (Module 3 : Dynamic Costing & Configurateur de Tarifs).
 export function PricingConfigurator() {
   const [rules, setRules] = useState<PricingRule[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [storageLocations, setStorageLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,8 +45,17 @@ export function PricingConfigurator() {
 
   async function reload() {
     setIsLoading(true);
-    const data = await pricingService.list();
-    setRules(data);
+    const [rulesData, vehicleTypesData, carriersData, warehouses, hubs] = await Promise.all([
+      pricingService.list(),
+      vehicleTypesService.list(),
+      carriersService.list(),
+      locationsService.list({ type: "WAREHOUSE" }),
+      locationsService.list({ type: "HUB_3PL" }),
+    ]);
+    setRules(rulesData);
+    setVehicleTypes(vehicleTypesData);
+    setCarriers(carriersData);
+    setStorageLocations([...warehouses, ...hubs]);
     setIsLoading(false);
   }
 
@@ -52,6 +72,18 @@ export function PricingConfigurator() {
       setFormError("Merci de renseigner un libellé et un prix unitaire valide.");
       return;
     }
+    if (form.ruleType === "TRANSPORT_FLAT_ZONE" && !form.zoneName.trim()) {
+      setFormError("La zone est requise pour un forfait par zone.");
+      return;
+    }
+    if (form.ruleType === "TRANSPORT_PER_VEHICLE" && !form.vehicleTypeId) {
+      setFormError("Le type de véhicule est requis pour un forfait par véhicule.");
+      return;
+    }
+    if (STORAGE_RULE_TYPES.includes(form.ruleType) && !form.storageLocationId) {
+      setFormError("Le site de stockage est requis pour une règle de stockage.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -59,14 +91,17 @@ export function PricingConfigurator() {
         label: form.label,
         ruleType: form.ruleType,
         source: form.source,
-        zoneName: form.zoneName || undefined,
+        zoneName: form.ruleType === "TRANSPORT_FLAT_ZONE" ? form.zoneName : undefined,
+        carrierId: form.carrierId || undefined,
+        vehicleTypeId: form.ruleType === "TRANSPORT_PER_VEHICLE" ? form.vehicleTypeId : undefined,
+        storageLocationId: STORAGE_RULE_TYPES.includes(form.ruleType) ? form.storageLocationId : undefined,
         unitPrice,
         currency: form.currency,
         validFrom: new Date(form.validFrom).toISOString(),
       } as never);
       setForm(EMPTY_FORM);
       await reload();
-    } catch (err) {
+    } catch {
       setFormError("La création de la règle a échoué. Vérifiez les champs requis pour ce type de règle.");
     } finally {
       setIsSubmitting(false);
@@ -89,7 +124,7 @@ export function PricingConfigurator() {
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Libellé</label>
           <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="input"
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
             placeholder="ex: Tarif interne au km - Zone Nord"
@@ -99,7 +134,7 @@ export function PricingConfigurator() {
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Type de règle</label>
           <select
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="input"
             value={form.ruleType}
             onChange={(e) => setForm({ ...form, ruleType: e.target.value as PricingRuleType })}
           >
@@ -114,7 +149,7 @@ export function PricingConfigurator() {
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Source</label>
           <select
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="input"
             value={form.source}
             onChange={(e) => setForm({ ...form, source: e.target.value as PricingSource })}
           >
@@ -123,15 +158,55 @@ export function PricingConfigurator() {
           </select>
         </div>
 
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">Transporteur (optionnel)</label>
+          <select className="input" value={form.carrierId} onChange={(e) => setForm({ ...form, carrierId: e.target.value })}>
+            <option value="">— Non spécifié —</option>
+            {carriers.map((carrier) => (
+              <option key={carrier.id} value={carrier.id}>
+                {carrier.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {form.ruleType === "TRANSPORT_FLAT_ZONE" && (
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">Zone</label>
             <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="input"
               value={form.zoneName}
               onChange={(e) => setForm({ ...form, zoneName: e.target.value })}
               placeholder="ex: Zone Nord"
             />
+          </div>
+        )}
+
+        {form.ruleType === "TRANSPORT_PER_VEHICLE" && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500">Type de véhicule</label>
+            <select className="input" value={form.vehicleTypeId} onChange={(e) => setForm({ ...form, vehicleTypeId: e.target.value })}>
+              <option value="">— Sélectionner —</option>
+              {vehicleTypes.map((vt) => (
+                <option key={vt.id} value={vt.id}>
+                  {vt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {STORAGE_RULE_TYPES.includes(form.ruleType) && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500">Site de stockage</label>
+            <select className="input" value={form.storageLocationId} onChange={(e) => setForm({ ...form, storageLocationId: e.target.value })}>
+              <option value="">— Sélectionner —</option>
+              {storageLocations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name} ({loc.city})
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -142,7 +217,7 @@ export function PricingConfigurator() {
               type="number"
               min={0}
               step="0.01"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="input"
               value={form.unitPrice}
               onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
             />
@@ -150,7 +225,7 @@ export function PricingConfigurator() {
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">Devise</label>
             <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="input"
               value={form.currency}
               onChange={(e) => setForm({ ...form, currency: e.target.value })}
             />
@@ -161,7 +236,7 @@ export function PricingConfigurator() {
           <label className="text-xs font-medium text-slate-500">Valide à partir du</label>
           <input
             type="date"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="input"
             value={form.validFrom}
             onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
           />

@@ -1,13 +1,16 @@
-import { Truck, Map, SlidersHorizontal, FileStack, PlugZap, PackageSearch } from "lucide-react";
+import { Truck, Map, SlidersHorizontal, FileStack, PlugZap, PackageSearch, Building2, Boxes, Settings2 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
   { to: "/", label: "Cartographie du réseau", icon: Map },
+  { to: "/locations", label: "Sites", icon: Building2 },
   { to: "/orders", label: "Commandes", icon: PackageSearch },
   { to: "/consolidation", label: "Consolidation & Flotte", icon: Truck },
+  { to: "/shipments", label: "Expéditions", icon: Boxes },
   { to: "/pricing", label: "Configurateur de tarifs", icon: SlidersHorizontal },
   { to: "/pre-invoicing", label: "Pré-Facturation", icon: FileStack },
   { to: "/erp", label: "Intégration ERP", icon: PlugZap },
+  { to: "/references", label: "Référentiels", icon: Settings2 },
 ];
 
 export function Sidebar() {

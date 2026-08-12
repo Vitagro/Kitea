@@ -55,6 +55,18 @@ export interface VehicleType {
   name: string;
   maxVolumeM3: number;
   maxWeightKg: number;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  isActive: boolean;
+}
+
+export interface Carrier {
+  id: string;
+  name: string;
+  isInternal: boolean;
+  contactEmail?: string | null;
+  isActive: boolean;
 }
 
 export type MatchingStatus =
@@ -76,6 +88,24 @@ export interface PreInvoice {
   toleranceThresholdPercent: number;
   currency: string;
   matchingStatus: MatchingStatus;
+}
+
+export type ShipmentStatus = "PLANNED" | "IN_TRANSIT" | "DELIVERED" | "CANCELLED";
+
+export interface Shipment {
+  id: string;
+  reference: string;
+  origin: Location;
+  destination: Location;
+  vehicleType?: VehicleType | null;
+  carrier?: Carrier | null;
+  totalVolumeM3: number;
+  totalWeightKg: number;
+  fillRatePercent?: number | null;
+  status: ShipmentStatus;
+  theoreticalCost?: number | null;
+  currency: string;
+  preInvoice?: PreInvoice | null;
 }
 
 export interface ConsolidatedShipmentPreview {

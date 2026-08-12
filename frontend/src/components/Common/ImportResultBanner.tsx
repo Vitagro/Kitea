@@ -8,7 +8,7 @@ interface Props {
 // Résumé d'un import Excel/ERP : lignes traitées, créées, ignorées, erreurs
 // détaillées ligne par ligne.
 export function ImportResultBanner({ result }: Props) {
-  const successCount = result.created ?? result.imported ?? 0;
+  const successCount = (result.created ?? 0) + (result.imported ?? 0) + (result.updated ?? 0);
   const hasErrors = result.errors.length > 0;
 
   return (
@@ -16,8 +16,10 @@ export function ImportResultBanner({ result }: Props) {
       <div className="flex items-center gap-2 font-medium">
         {hasErrors ? <AlertCircle size={16} className="text-amber-600" /> : <CheckCircle2 size={16} className="text-emerald-600" />}
         <span>
-          {successCount} ligne(s) importée(s) sur {result.totalRows}
-          {result.skipped > 0 ? ` · ${result.skipped} ignorée(s)` : ""}
+          {successCount} ligne(s) traitée(s) sur {result.totalRows}
+          {result.created ? ` · ${result.created} créée(s)` : ""}
+          {result.updated ? ` · ${result.updated} mise(s) à jour` : ""}
+          {result.skipped ? ` · ${result.skipped} ignorée(s)` : ""}
         </span>
       </div>
 

@@ -21,6 +21,7 @@ export interface ImportResult {
   totalRows: number;
   created?: number;
   imported?: number;
-  skipped: number;
+  updated?: number;
+  skipped?: number;
   errors: { row: number; message: string }[];
 }

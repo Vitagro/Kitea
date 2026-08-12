@@ -11,6 +11,9 @@ import { ordersRouter } from "./modules/orders/orders.routes";
 import { consolidationRouter } from "./modules/consolidation/consolidation.routes";
 import { preInvoicingRouter } from "./modules/pre-invoicing/pre-invoicing.routes";
 import { erpIntegrationRouter } from "./modules/erp-integration/erp-integration.routes";
+import { vehicleTypesRouter } from "./modules/vehicle-types/vehicle-types.routes";
+import { carriersRouter } from "./modules/carriers/carriers.routes";
+import { shipmentsRouter } from "./modules/shipments/shipments.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -31,6 +34,9 @@ export function createApp(): Express {
   app.use("/api/consolidation", consolidationRouter);
   app.use("/api/pre-invoices", preInvoicingRouter);
   app.use("/api/erp", erpIntegrationRouter);
+  app.use("/api/vehicle-types", vehicleTypesRouter);
+  app.use("/api/carriers", carriersRouter);
+  app.use("/api/shipments", shipmentsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

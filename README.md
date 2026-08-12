@@ -94,13 +94,16 @@ kitea/
 │       │   │   └── validateRequest.ts
 │       │   └── utils/geo.ts
 │       └── modules/
-│           ├── locations/          # Module 1 - Sites & cartographie
+│           ├── locations/          # Module 1 - Sites, CRUD & import/export Excel
 │           ├── distance/           # Module 1 - Matrice de distances
 │           ├── pricing/            # Module 3 - Configurateur de tarifs
-│           ├── orders/             # Commandes & shipments
+│           ├── vehicle-types/      # Module 2 - Typologie de flotte (CRUD)
+│           ├── carriers/           # Transporteurs internes/3PL (CRUD)
+│           ├── orders/             # Commandes, import/export Excel
 │           ├── consolidation/      # Module 2 - Regroupement & choix véhicule
+│           ├── shipments/          # Expéditions consolidées (lecture)
 │           ├── pre-invoicing/      # Module 4 - Pré-facturation & 3-way matching
-│           └── erp-integration/    # Module 5 - API ERP inbound/outbound
+│           └── erp-integration/    # Module 5 - API ERP inbound/outbound + import masse
 └── frontend/
     ├── package.json
     ├── vite.config.ts
@@ -111,11 +114,13 @@ kitea/
         ├── App.tsx
         ├── types/
         ├── services/            # Clients API (axios)
-        ├── store/               # State management
         ├── components/
         │   ├── Map/             # Carte interactive du réseau
+        │   ├── Locations/       # Gestion des sites (liste, CRUD, Excel)
         │   ├── Pricing/         # Configurateur de tarifs (admin)
-        │   ├── Orders/          # Consolidation & sélection véhicule
+        │   ├── Orders/          # Liste commandes, import/export Excel
+        │   ├── Shipments/       # Expéditions consolidées
+        │   ├── References/      # Types de véhicules & transporteurs
         │   ├── Invoicing/       # Pré-facturation & rapprochement
         │   ├── Layout/
         │   └── Common/
@@ -185,6 +190,7 @@ npm run dev                # démarre l'app sur http://localhost:5173
 | `POST /api/erp/import/orders` | Import en masse depuis l'ERP — lot JSON (`{ orders: [...] }`) |
 | `POST /api/erp/import/orders/excel` | Import en masse depuis l'ERP — fichier Excel (multipart, champ `file`) |
 | `GET /api/erp/import/orders/template` | Modèle Excel attendu pour un export ERP |
+| `GET /api/locations/export` · `POST /api/locations/import` | Export/import Excel du réseau de sites (upsert par `code`) |
 
 Les sites d'origine/destination sont référencés par leur `code` (ex: `KTA-WH-CASA-KSH`), pas par leur UUID interne — cohérent avec le `code` unique du modèle `Location`. Chaque ligne d'un import est traitée indépendamment : une ligne invalide ou une référence de commande déjà existante est reportée dans la réponse (`errors[]`) sans bloquer le reste du lot.
 
