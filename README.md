@@ -173,7 +173,41 @@ npm run dev                # démarre l'app sur http://localhost:5173
 | `VITE_API_BASE_URL` | frontend/.env | URL de base de l'API consommée par le frontend |
 | `VITE_MAP_TILE_URL` | frontend/.env | URL des tuiles cartographiques (OSM/Mapbox) |
 
-## 7. Feuille de route (Roadmap)
+## 7. Déploiement (Vercel + Render + Supabase)
+
+Configuration cible pour un environnement de test/démo :
+
+- **Base de données** → [Supabase](https://supabase.com) (PostgreSQL managé + PostGIS disponible).
+- **Backend** → [Render](https://render.com) (serveur Node.js long-running, requis par Express/Prisma — Vercel ne fait tourner que des fonctions serverless, incompatible avec ce type de backend).
+- **Frontend** → [Vercel](https://vercel.com) (build statique Vite, fait pour ça).
+
+### 7.1 Supabase (base de données)
+
+1. Créer un projet sur [supabase.com](https://supabase.com).
+2. Dans **Project Settings → Database → Connection string**, récupérer :
+   - la connexion **pooled** (port 6543, pgbouncer) → `DATABASE_URL`
+   - la connexion **directe** (port 5432) → `DIRECT_URL` (requise par `prisma migrate`)
+3. (Optionnel) Activer l'extension **PostGIS** dans **Database → Extensions**.
+
+### 7.2 Render (backend)
+
+Le fichier [`render.yaml`](render.yaml) à la racine décrit le service (blueprint Git) :
+
+1. Sur [dashboard.render.com](https://dashboard.render.com), **New → Blueprint**, sélectionner ce repo.
+2. Render détecte `render.yaml` et provisionne un service web `kitea-logistics-backend` (rootDir `backend/`).
+3. Renseigner les variables marquées `sync: false` dans **Environment** : `DATABASE_URL`, `DIRECT_URL` (Supabase), `JWT_SECRET`, `ERP_WEBHOOK_SECRET`, `CORS_ORIGIN` (URL Vercel du frontend), `ERP_BASE_URL`.
+4. Au déploiement, Render exécute `prisma generate` au build puis `prisma migrate deploy` au démarrage (applique les migrations sur Supabase).
+
+### 7.3 Vercel (frontend)
+
+Le fichier [`vercel.json`](vercel.json) à la racine pointe le build sur `frontend/` (monorepo) :
+
+1. Sur [vercel.com](https://vercel.com), importer ce repo dans le projet cible.
+2. Vercel lit `vercel.json` à la racine — aucune configuration manuelle du *Root Directory* n'est nécessaire.
+3. Renseigner la variable d'environnement **`VITE_API_BASE_URL`** = URL du service Render (ex: `https://kitea-logistics-backend.onrender.com/api`).
+4. Chaque push sur la branche connectée redéploie automatiquement le frontend.
+
+## 8. Feuille de route (Roadmap)
 
 - [x] **Phase 0** — Cadrage, architecture, schéma de données, scaffolding du repo.
 - [ ] **Phase 1** — Module Cartographie : CRUD sites, carte interactive, fiches sites, matrice de distances (Haversine puis API routing externe).
@@ -183,10 +217,10 @@ npm run dev                # démarre l'app sur http://localhost:5173
 - [ ] **Phase 5** — Intégration ERP : connecteurs inbound/outbound, authentification API, mapping des référentiels (magasins, produits, comptes).
 - [ ] **Phase 6** — Durcissement : authentification/rôles (RBAC), audit trail, tests end-to-end, observabilité (logs/metrics), déploiement CI/CD.
 
-## 8. Contribution
+## 9. Contribution
 
 Ce dépôt suit une architecture modulaire : chaque module métier (pricing, consolidation, pre-invoicing, erp-integration...) est isolé sous `backend/src/modules/*` avec ses propres routes/contrôleurs/services, et son pendant `frontend/src/components/*`. Toute nouvelle fonctionnalité doit respecter ce découpage et ne pas introduire de couplage direct entre modules (passer par des services partagés dans `common/`).
 
-## 9. Licence
+## 10. Licence
 
 Propriété interne KITEA — usage restreint. Licence à définir par la Direction Logistique.
