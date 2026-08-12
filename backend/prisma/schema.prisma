@@ -1,0 +1,368 @@
+// ============================================================================
+// KITEA Logistics Control Tower & Pre-Invoicing Engine
+// Schéma de base de données - PostgreSQL + PostGIS
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 1 — Cartographie & Géolocalisation du réseau KITEA
+// -----------------------------------------------------------------------------
+
+enum LocationType {
+  STORE // Magasin / Showroom / Outlet
+  WAREHOUSE // Entrepôt central KITEA
+  HUB_3PL // Hub prestataire 3PL
+  CROSS_DOCK
+}
+
+model Location {
+  id                String       @id @default(uuid())
+  code              String       @unique // Code site (ex: KTA-STO-CASA-012)
+  name              String
+  type              LocationType
+
+  // Géolocalisation (latitude/longitude en degrés décimaux - WGS84)
+  latitude          Float
+  longitude         Float
+  address           String?
+  city              String
+  region            String?
+  country           String       @default("MA")
+
+  // Capacités
+  storageAreaM2     Float?       @map("storage_area_m2") // capacité m²
+  storageVolumeM3   Float?       @map("storage_volume_m3") // capacité m³
+  bufferStockUnits  Int?         @map("buffer_stock_units")
+
+  // Contraintes opérationnelles
+  deliveryWindowStart String?    @map("delivery_window_start") // "08:00"
+  deliveryWindowEnd   String?    @map("delivery_window_end")   // "18:00"
+  truckAccessRestriction String? @map("truck_access_restriction") // ex: "Max 3.5T, pas de semi-remorque"
+  operatingDays       String?    @map("operating_days") // "MON-SAT"
+
+  // Prestataire (si HUB_3PL)
+  operatorName      String?      @map("operator_name")
+  isActive          Boolean      @default(true) @map("is_active")
+
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  ordersAsOrigin        Order[]          @relation("OrderOrigin")
+  ordersAsDestination   Order[]          @relation("OrderDestination")
+  shipmentsAsOrigin     Shipment[]       @relation("ShipmentOrigin")
+  shipmentsAsDestination Shipment[]      @relation("ShipmentDestination")
+  distancesFrom         DistanceMatrix[] @relation("DistanceFrom")
+  distancesTo            DistanceMatrix[] @relation("DistanceTo")
+  storagePricingRules    PricingRule[]   @relation("StorageLocationPricing")
+
+  @@map("locations")
+  @@index([type])
+  @@index([city])
+}
+
+// Matrice de distances / temps de trajet réels entre sites
+model DistanceMatrix {
+  id             String   @id @default(uuid())
+  fromLocationId String   @map("from_location_id")
+  toLocationId   String   @map("to_location_id")
+
+  distanceKm     Float    @map("distance_km")
+  durationMin    Int      @map("duration_min")
+  source         String   @default("HAVERSINE") // HAVERSINE | ROUTING_API | MANUAL
+
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  fromLocation   Location @relation("DistanceFrom", fields: [fromLocationId], references: [id], onDelete: Cascade)
+  toLocation     Location @relation("DistanceTo", fields: [toLocationId], references: [id], onDelete: Cascade)
+
+  @@unique([fromLocationId, toLocationId])
+  @@map("distance_matrix")
+  @@index([fromLocationId])
+  @@index([toLocationId])
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 2 — Typologie de flotte & optimisation
+// -----------------------------------------------------------------------------
+
+model VehicleType {
+  id             String   @id @default(uuid())
+  code           String   @unique // ex: "VAN_LIGHT", "TRUCK_MEDIUM", "PORTEUR_14T", "SEMI_TRAILER"
+  name           String   // ex: "Utilitaire léger"
+  maxVolumeM3    Float    @map("max_volume_m3")
+  maxWeightKg    Float    @map("max_weight_kg")
+  lengthCm       Float?   @map("length_cm")
+  widthCm        Float?   @map("width_cm")
+  heightCm       Float?   @map("height_cm")
+  isActive       Boolean  @default(true) @map("is_active")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  shipments      Shipment[]
+  pricingRules   PricingRule[]
+
+  @@map("vehicle_types")
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 3 — Dynamic Costing & Configurateur de tarifs
+// -----------------------------------------------------------------------------
+
+enum PricingRuleType {
+  TRANSPORT_FLAT_ZONE // forfait fixe par zone
+  TRANSPORT_PER_KM // prix au km
+  TRANSPORT_PER_VEHICLE // forfait par type de véhicule
+  STORAGE_PER_PALLET_DAY // prix par palette/jour
+  STORAGE_PER_M2_MONTH // prix par m²/mois
+  HANDLING_IN // frais de manutention entrée
+  HANDLING_OUT // frais de manutention sortie
+}
+
+enum PricingSource {
+  INTERNAL // grille interne KITEA
+  EXTERNAL_3PL // grille prestataire externe
+}
+
+model Carrier {
+  id           String   @id @default(uuid())
+  name         String
+  isInternal   Boolean  @default(false) @map("is_internal") // true = prestataire interne au groupe
+  contactEmail String?  @map("contact_email")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  pricingRules    PricingRule[]
+  shipments       Shipment[]
+  carrierInvoices CarrierInvoice[]
+
+  @@map("carriers")
+}
+
+// Grille tarifaire paramétrable : trajet, stockage, manutention
+model PricingRule {
+  id              String          @id @default(uuid())
+  label           String
+  ruleType        PricingRuleType @map("rule_type")
+  source          PricingSource   @default(INTERNAL)
+
+  carrierId       String?         @map("carrier_id")
+  vehicleTypeId   String?         @map("vehicle_type_id")
+  storageLocationId String?       @map("storage_location_id")
+
+  // Zone géographique (pour TRANSPORT_FLAT_ZONE)
+  zoneName        String?         @map("zone_name")
+
+  // Valeur du tarif
+  unitPrice       Float           @map("unit_price") // €/MAD selon l'unité de la règle
+  currency        String          @default("MAD")
+
+  // Fenêtre de validité
+  validFrom       DateTime        @map("valid_from")
+  validTo         DateTime?       @map("valid_to")
+
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  carrier         Carrier?        @relation(fields: [carrierId], references: [id])
+  vehicleType     VehicleType?    @relation(fields: [vehicleTypeId], references: [id])
+  storageLocation Location?       @relation("StorageLocationPricing", fields: [storageLocationId], references: [id])
+
+  @@map("pricing_rules")
+  @@index([ruleType])
+  @@index([source])
+}
+
+// -----------------------------------------------------------------------------
+// Commandes & Expéditions
+// -----------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  CONSOLIDATED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id                 String      @id @default(uuid())
+  reference          String      @unique // ex: numéro de commande ERP
+
+  originLocationId      String   @map("origin_location_id")
+  destinationLocationId String   @map("destination_location_id")
+
+  volumeM3           Float       @map("volume_m3")
+  weightKg           Float       @map("weight_kg")
+  isFragile          Boolean     @default(false) @map("is_fragile")
+  isStackable         Boolean    @default(true) @map("is_stackable")
+
+  deliveryWindowStart DateTime   @map("delivery_window_start")
+  deliveryWindowEnd   DateTime   @map("delivery_window_end")
+
+  status              OrderStatus @default(PENDING)
+
+  shipmentId          String?     @map("shipment_id")
+
+  erpSourceRef         String?    @map("erp_source_ref") // référence externe ERP
+
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  origin              Location    @relation("OrderOrigin", fields: [originLocationId], references: [id])
+  destination         Location    @relation("OrderDestination", fields: [destinationLocationId], references: [id])
+  shipment            Shipment?   @relation(fields: [shipmentId], references: [id])
+
+  @@map("orders")
+  @@index([status])
+  @@index([originLocationId, destinationLocationId])
+}
+
+enum ShipmentStatus {
+  PLANNED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+// Regroupement de commandes affecté à un véhicule/transporteur
+model Shipment {
+  id                  String         @id @default(uuid())
+  reference           String         @unique
+
+  originLocationId       String      @map("origin_location_id")
+  destinationLocationId  String      @map("destination_location_id")
+
+  vehicleTypeId       String?        @map("vehicle_type_id")
+  carrierId           String?        @map("carrier_id")
+
+  totalVolumeM3       Float          @map("total_volume_m3")
+  totalWeightKg        Float         @map("total_weight_kg")
+  fillRatePercent      Float?         @map("fill_rate_percent") // taux de remplissage (%)
+
+  status               ShipmentStatus @default(PLANNED)
+
+  scheduledDeparture    DateTime?     @map("scheduled_departure")
+  scheduledArrival       DateTime?    @map("scheduled_arrival")
+
+  theoreticalCost       Float?        @map("theoretical_cost") // coût calculé par l'app
+  currency              String        @default("MAD")
+
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime    @updatedAt @map("updated_at")
+
+  origin                Location      @relation("ShipmentOrigin", fields: [originLocationId], references: [id])
+  destination            Location     @relation("ShipmentDestination", fields: [destinationLocationId], references: [id])
+  vehicleType            VehicleType? @relation(fields: [vehicleTypeId], references: [id])
+  carrier                Carrier?     @relation(fields: [carrierId], references: [id])
+
+  orders                 Order[]
+  preInvoice              PreInvoice?
+
+  @@map("shipments")
+  @@index([status])
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 4 — Facturation intragroupe & Pré-Facturation
+// -----------------------------------------------------------------------------
+
+enum MatchingStatus {
+  PENDING_INVOICE // en attente de la facture prestataire
+  MATCHED // écart dans la tolérance
+  DISCREPANCY // écart hors tolérance, à traiter
+  APPROVED
+  REJECTED
+  CREDIT_NOTE_REQUESTED
+}
+
+// Facture réelle reçue du prestataire (saisie ou importée)
+model CarrierInvoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @map("invoice_number")
+  carrierId     String   @map("carrier_id")
+
+  amount        Float
+  currency      String   @default("MAD")
+  invoiceDate   DateTime @map("invoice_date")
+
+  documentUrl   String?  @map("document_url") // lien vers le PDF/scan importé
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  carrier       Carrier      @relation(fields: [carrierId], references: [id])
+  preInvoice    PreInvoice?
+
+  @@map("carrier_invoices")
+}
+
+// Pré-facture générée automatiquement + contrôle des écarts (3-way matching)
+model PreInvoice {
+  id                  String         @id @default(uuid())
+  reference           String         @unique
+
+  shipmentId          String         @unique @map("shipment_id")
+  carrierInvoiceId    String?        @unique @map("carrier_invoice_id")
+
+  theoreticalAmount   Float          @map("theoretical_amount") // coût théorique calculé
+  carrierAmount       Float?         @map("carrier_amount") // montant facturé par le prestataire
+  gapAmount           Float?         @map("gap_amount") // écart absolu
+  gapPercent          Float?         @map("gap_percent") // écart en %
+  toleranceThresholdPercent Float    @default(5) @map("tolerance_threshold_percent")
+
+  currency            String         @default("MAD")
+
+  matchingStatus       MatchingStatus @default(PENDING_INVOICE) @map("matching_status")
+
+  validatedBy          String?        @map("validated_by") // utilisateur ayant statué
+  validatedAt           DateTime?     @map("validated_at")
+  validationNote          String?     @map("validation_note")
+
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt                DateTime   @updatedAt @map("updated_at")
+
+  shipment                Shipment    @relation(fields: [shipmentId], references: [id])
+  carrierInvoice           CarrierInvoice? @relation(fields: [carrierInvoiceId], references: [id])
+
+  @@map("pre_invoices")
+  @@index([matchingStatus])
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 5 — ERP Integration Layer
+// -----------------------------------------------------------------------------
+
+enum ErpDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ErpSyncStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+// Journal des échanges avec l'ERP (traçabilité / rejeu en cas d'échec)
+model ErpSyncLog {
+  id           String        @id @default(uuid())
+  direction    ErpDirection
+  eventType    String        @map("event_type") // ex: "ORDER_CREATED", "SHIPMENT_STATUS_UPDATED", "PRE_INVOICE_VALIDATED"
+  payload      Json
+  status       ErpSyncStatus @default(PENDING)
+  errorMessage String?       @map("error_message")
+
+  createdAt    DateTime      @default(now()) @map("created_at")
+  processedAt  DateTime?     @map("processed_at")
+
+  @@map("erp_sync_logs")
+  @@index([direction, status])
+}
