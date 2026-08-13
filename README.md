@@ -176,6 +176,7 @@ npm run dev                # démarre l'app sur http://localhost:5173
 | `PORT` | backend/.env | Port de l'API (défaut 4000) |
 | `JWT_SECRET` | backend/.env | Secret de signature des tokens |
 | `ERP_WEBHOOK_SECRET` | backend/.env | Secret de vérification des webhooks entrants ERP |
+| `GOOGLE_MAPS_API_KEY` | backend/.env | Optionnelle — active le géocodage précis des sites (voir §7.4) |
 | `VITE_API_BASE_URL` | frontend/.env | URL de base de l'API consommée par le frontend |
 | `VITE_MAP_TILE_URL` | frontend/.env | URL des tuiles cartographiques (OSM/Mapbox) |
 
@@ -191,6 +192,7 @@ npm run dev                # démarre l'app sur http://localhost:5173
 | `POST /api/erp/import/orders/excel` | Import en masse depuis l'ERP — fichier Excel (multipart, champ `file`) |
 | `GET /api/erp/import/orders/template` | Modèle Excel attendu pour un export ERP |
 | `GET /api/locations/export` · `POST /api/locations/import` | Export/import Excel du réseau de sites (upsert par `code`) |
+| `POST /api/locations/:id/geocode` | Résout latitude/longitude + Place ID via Google Geocoding API (nécessite `GOOGLE_MAPS_API_KEY`, voir §7.4) |
 
 Les sites d'origine/destination sont référencés par leur `code` (ex: `KTA-WH-CASA-KSH`), pas par leur UUID interne — cohérent avec le `code` unique du modèle `Location`. Chaque ligne d'un import est traitée indépendamment : une ligne invalide ou une référence de commande déjà existante est reportée dans la réponse (`errors[]`) sans bloquer le reste du lot.
 
@@ -227,6 +229,18 @@ Le fichier [`vercel.json`](vercel.json) à la racine pointe le build sur `fronte
 2. Vercel lit `vercel.json` à la racine — aucune configuration manuelle du *Root Directory* n'est nécessaire.
 3. Renseigner la variable d'environnement **`VITE_API_BASE_URL`** = URL du service Render (ex: `https://kitea-logistics-backend.onrender.com/api`).
 4. Chaque push sur la branche connectée redéploie automatiquement le frontend.
+
+### 7.4 Google Maps (géocodage précis des sites)
+
+Le réseau KITEA est pré-rempli (`prisma/seed.ts`) à partir de recherches web publiques : adresses, téléphone (centre d'appel national), horaires standards sont réels, mais les **coordonnées GPS restent approximées au niveau ville** — ni `kitea.com` ni `google.com` n'étaient joignables depuis l'environnement de développement utilisé pour la collecte (proxy réseau sandbox), donc aucune coordonnée exacte n'a pu être vérifiée en direct sur Google Maps.
+
+Pour résoudre les coordonnées précises **une fois déployé** (Render n'a pas cette restriction réseau) :
+
+1. Créer une clé API sur [Google Cloud Console](https://console.cloud.google.com/) → activer **Geocoding API** → **Credentials** → créer une clé, la restreindre à cette API + à l'IP/domaine du service Render.
+2. Renseigner `GOOGLE_MAPS_API_KEY` dans les variables d'environnement Render.
+3. Depuis l'écran **Sites**, cliquer sur l'icône 🎯 en face de chaque site pour appeler `POST /api/locations/:id/geocode` — la latitude/longitude et le lien Google Maps du site sont alors mis à jour avec les données officielles Google (Place ID inclus).
+
+Sans clé configurée, cet endpoint répond une erreur explicite (`400`) plutôt que d'échouer silencieusement. Le lien "Voir sur Google Maps" (icône 🔗), lui, fonctionne dans tous les cas : c'est une recherche Google Maps construite à partir du nom/adresse, sans dépendance à l'API.
 
 ## 8. Feuille de route (Roadmap)
 

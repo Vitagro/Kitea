@@ -19,6 +19,11 @@ export interface LocationExportRow extends Record<string, unknown> {
   truckAccessRestriction: string;
   operatingDays: string;
   operatorName: string;
+  phone: string;
+  website: string;
+  openingHoursText: string;
+  googleMapsUrl: string;
+  plusCode: string;
   isActive: string;
 }
 
@@ -40,6 +45,11 @@ export const LOCATION_EXPORT_COLUMNS: ExcelColumn<LocationExportRow>[] = [
   { header: "Restriction accès camion", key: "truckAccessRestriction", width: 28 },
   { header: "Jours d'exploitation", key: "operatingDays", width: 18 },
   { header: "Opérateur", key: "operatorName", width: 22 },
+  { header: "Téléphone", key: "phone", width: 18 },
+  { header: "Site web", key: "website", width: 26 },
+  { header: "Horaires (client)", key: "openingHoursText", width: 22 },
+  { header: "Lien Google Maps", key: "googleMapsUrl", width: 40 },
+  { header: "Plus Code", key: "plusCode", width: 16 },
   { header: "Actif", key: "isActive", width: 10 },
 ];
 
@@ -62,6 +72,11 @@ export function toLocationExportRow(location: Location): LocationExportRow {
     truckAccessRestriction: location.truckAccessRestriction ?? "",
     operatingDays: location.operatingDays ?? "",
     operatorName: location.operatorName ?? "",
+    phone: location.phone ?? "",
+    website: location.website ?? "",
+    openingHoursText: location.openingHoursText ?? "",
+    googleMapsUrl: location.googleMapsUrl ?? "",
+    plusCode: location.plusCode ?? "",
     isActive: location.isActive ? "OUI" : "NON",
   };
 }
@@ -84,6 +99,11 @@ export interface LocationImportRow extends Record<string, unknown> {
   truckAccessRestriction: unknown;
   operatingDays: unknown;
   operatorName: unknown;
+  phone: unknown;
+  website: unknown;
+  openingHoursText: unknown;
+  googleMapsUrl: unknown;
+  plusCode: unknown;
 }
 
 export const LOCATION_IMPORT_COLUMNS: ExcelColumn<LocationImportRow>[] = [
@@ -104,4 +124,9 @@ export const LOCATION_IMPORT_COLUMNS: ExcelColumn<LocationImportRow>[] = [
   { header: "Restriction accès camion", key: "truckAccessRestriction", width: 28 },
   { header: "Jours d'exploitation", key: "operatingDays", width: 18 },
   { header: "Opérateur (si Hub 3PL)", key: "operatorName", width: 22 },
+  { header: "Téléphone", key: "phone", width: 18 },
+  { header: "Site web", key: "website", width: 26 },
+  { header: "Horaires (client)", key: "openingHoursText", width: 22 },
+  { header: "Lien Google Maps (optionnel, auto-généré sinon)", key: "googleMapsUrl", width: 40 },
+  { header: "Plus Code (optionnel)", key: "plusCode", width: 20 },
 ];

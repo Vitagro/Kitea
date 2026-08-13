@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { Download, FileSpreadsheet, Pencil, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Download, ExternalLink, FileSpreadsheet, LocateFixed, Pencil, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { locationsService } from "../../services/locationsService";
 import { Location, LocationType } from "../../types";
 import { ImportResult } from "../../types/orders";
@@ -25,6 +25,9 @@ const EMPTY_FORM = {
   storageAreaM2: "",
   storageVolumeM3: "",
   operatorName: "",
+  phone: "",
+  website: "",
+  openingHoursText: "",
 };
 
 // Écran de gestion du réseau KITEA : liste de tous les sites (magasins,
@@ -45,6 +48,9 @@ export function LocationsTable() {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [geocodingId, setGeocodingId] = useState<string | null>(null);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
   async function reload() {
     setIsLoading(true);
@@ -79,6 +85,9 @@ export function LocationsTable() {
       storageAreaM2: location.storageAreaM2 != null ? String(location.storageAreaM2) : "",
       storageVolumeM3: location.storageVolumeM3 != null ? String(location.storageVolumeM3) : "",
       operatorName: location.operatorName ?? "",
+      phone: location.phone ?? "",
+      website: location.website ?? "",
+      openingHoursText: location.openingHoursText ?? "",
     });
     setFormError(null);
   }
@@ -113,6 +122,9 @@ export function LocationsTable() {
       storageAreaM2: form.storageAreaM2 ? Number(form.storageAreaM2) : undefined,
       storageVolumeM3: form.storageVolumeM3 ? Number(form.storageVolumeM3) : undefined,
       operatorName: form.operatorName || undefined,
+      phone: form.phone || undefined,
+      website: form.website || undefined,
+      openingHoursText: form.openingHoursText || undefined,
     };
 
     setIsSubmitting(true);
@@ -135,6 +147,22 @@ export function LocationsTable() {
     if (location.isActive) await locationsService.deactivate(location.id);
     else await locationsService.reactivate(location.id);
     await reload();
+  }
+
+  async function handleGeocode(location: Location) {
+    setGeocodingId(location.id);
+    setGeocodeError(null);
+    try {
+      await locationsService.geocode(location.id);
+      await reload();
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Échec du géocodage.";
+      setGeocodeError(`${location.name} : ${message}`);
+    } finally {
+      setGeocodingId(null);
+    }
   }
 
   async function handleImport(event: ChangeEvent<HTMLInputElement>) {
@@ -182,6 +210,11 @@ export function LocationsTable() {
       </div>
 
       {importResult && <ImportResultBanner result={importResult} />}
+      {geocodeError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm p-3">
+          {geocodeError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form onSubmit={handleSubmit} className="lg:col-span-1 bg-white rounded-xl border border-slate-200 p-5 space-y-3 h-fit">
@@ -256,6 +289,24 @@ export function LocationsTable() {
             </Field>
           )}
 
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Téléphone">
+              <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+212 802 00 80 02" />
+            </Field>
+            <Field label="Site web">
+              <input className="input" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." />
+            </Field>
+          </div>
+
+          <Field label="Horaires (client)">
+            <input
+              className="input"
+              value={form.openingHoursText}
+              onChange={(e) => setForm({ ...form, openingHoursText: e.target.value })}
+              placeholder="Lun-Dim 09:00-22:00"
+            />
+          </Field>
+
           {formError && <p className="text-xs text-red-600">{formError}</p>}
 
           <button
@@ -329,6 +380,25 @@ export function LocationsTable() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                      {location.googleMapsUrl && (
+                        <a
+                          href={location.googleMapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex text-slate-400 hover:text-kitea-blue"
+                          title="Voir sur Google Maps"
+                        >
+                          <ExternalLink size={16} />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleGeocode(location)}
+                        disabled={geocodingId === location.id}
+                        className="inline-flex text-slate-400 hover:text-kitea-blue disabled:opacity-50"
+                        title="Géolocaliser précisément via Google Maps (nécessite GOOGLE_MAPS_API_KEY)"
+                      >
+                        <LocateFixed size={16} />
+                      </button>
                       <button onClick={() => startEdit(location)} className="text-slate-400 hover:text-kitea-blue" title="Modifier">
                         <Pencil size={16} />
                       </button>

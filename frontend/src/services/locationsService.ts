@@ -35,6 +35,11 @@ export const locationsService = {
     return data;
   },
 
+  async geocode(id: string): Promise<Location> {
+    const { data } = await apiClient.post<Location>(`/locations/${id}/geocode`);
+    return data;
+  },
+
   async exportExcel(): Promise<void> {
     const { data } = await apiClient.get("/locations/export", { responseType: "blob" });
     downloadBlob(data, "sites-kitea.xlsx");

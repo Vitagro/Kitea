@@ -19,6 +19,12 @@ export interface Location {
   truckAccessRestriction?: string | null;
   operatingDays?: string | null;
   operatorName?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  openingHoursText?: string | null;
+  googleMapsUrl?: string | null;
+  googlePlaceId?: string | null;
+  plusCode?: string | null;
   isActive: boolean;
 }
 

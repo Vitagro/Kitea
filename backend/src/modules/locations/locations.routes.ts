@@ -23,4 +23,5 @@ locationsRouter.patch(
   asyncHandler(locationsController.update)
 );
 locationsRouter.post("/:id/reactivate", asyncHandler(locationsController.reactivate));
+locationsRouter.post("/:id/geocode", asyncHandler(locationsController.geocode));
 locationsRouter.delete("/:id", asyncHandler(locationsController.deactivate));

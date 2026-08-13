@@ -7,6 +7,8 @@ import {
   coerceCellString,
   parseWorkbookBuffer,
 } from "../../common/utils/excel";
+import { buildGoogleMapsPlaceUrl, buildGoogleMapsSearchUrl } from "../../common/utils/googleMaps";
+import { geocodeAddress } from "./geocoding.service";
 import { LOCATION_EXPORT_COLUMNS, LOCATION_IMPORT_COLUMNS, toLocationExportRow } from "./locations.excel";
 import {
   CreateLocationInput,
@@ -36,12 +38,24 @@ export const locationsService = {
   async create(input: CreateLocationInput) {
     const existing = await prisma.location.findUnique({ where: { code: input.code } });
     if (existing) throw AppError.conflict(`Le code site "${input.code}" existe déjà`);
-    return prisma.location.create({ data: input });
+    return prisma.location.create({
+      data: {
+        ...input,
+        googleMapsUrl: input.googleMapsUrl || buildGoogleMapsSearchUrl(input),
+      },
+    });
   },
 
   async update(id: string, input: UpdateLocationInput) {
-    await this.getById(id);
-    return prisma.location.update({ where: { id }, data: input });
+    const current = await this.getById(id);
+    const merged = { ...current, ...input };
+    return prisma.location.update({
+      where: { id },
+      data: {
+        ...input,
+        googleMapsUrl: input.googleMapsUrl || current.googleMapsUrl || buildGoogleMapsSearchUrl(merged),
+      },
+    });
   },
 
   async deactivate(id: string) {
@@ -52,6 +66,28 @@ export const locationsService = {
   async reactivate(id: string) {
     await this.getById(id);
     return prisma.location.update({ where: { id }, data: { isActive: true } });
+  },
+
+  // Résout les coordonnées précises + Place ID via l'API Google Geocoding,
+  // à partir du nom/adresse/ville déjà saisis. Écrase latitude/longitude
+  // (jusque-là potentiellement approximées) et le lien Google Maps.
+  async geocode(id: string) {
+    const location = await this.getById(id);
+    const query = [location.name, location.address, location.city, location.country]
+      .filter(Boolean)
+      .join(", ");
+
+    const result = await geocodeAddress(query);
+
+    return prisma.location.update({
+      where: { id },
+      data: {
+        latitude: result.latitude,
+        longitude: result.longitude,
+        googlePlaceId: result.placeId,
+        googleMapsUrl: buildGoogleMapsPlaceUrl(result.placeId),
+      },
+    });
   },
 
   async exportToExcel(): Promise<Buffer> {
@@ -89,6 +125,11 @@ export const locationsService = {
         truckAccessRestriction: coerceCellString(row.values.truckAccessRestriction),
         operatingDays: coerceCellString(row.values.operatingDays),
         operatorName: coerceCellString(row.values.operatorName),
+        phone: coerceCellString(row.values.phone),
+        website: coerceCellString(row.values.website),
+        openingHoursText: coerceCellString(row.values.openingHoursText),
+        googleMapsUrl: coerceCellString(row.values.googleMapsUrl),
+        plusCode: coerceCellString(row.values.plusCode),
       };
 
       const parsed = importLocationRowSchema.safeParse(raw);
@@ -97,7 +138,10 @@ export const locationsService = {
         continue;
       }
 
-      const data = parsed.data;
+      const data = {
+        ...parsed.data,
+        googleMapsUrl: parsed.data.googleMapsUrl || buildGoogleMapsSearchUrl(parsed.data),
+      };
       const existing = await prisma.location.findUnique({ where: { code: data.code } });
 
       if (existing) {

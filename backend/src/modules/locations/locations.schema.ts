@@ -21,6 +21,12 @@ export const createLocationSchema = z.object({
     truckAccessRestriction: z.string().optional(),
     operatingDays: z.string().optional(),
     operatorName: z.string().optional(),
+    phone: z.string().optional(),
+    website: z.string().optional(),
+    openingHoursText: z.string().optional(),
+    googleMapsUrl: z.string().optional(),
+    googlePlaceId: z.string().optional(),
+    plusCode: z.string().optional(),
   }),
 });
 
@@ -50,6 +56,11 @@ export const importLocationRowSchema = z.object({
   truckAccessRestriction: z.string().optional(),
   operatingDays: z.string().optional(),
   operatorName: z.string().optional(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  openingHoursText: z.string().optional(),
+  googleMapsUrl: z.string().optional(),
+  plusCode: z.string().optional(),
 });
 
 export type ImportLocationRow = z.infer<typeof importLocationRowSchema>;

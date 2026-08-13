@@ -53,6 +53,11 @@ export const locationsController = {
     const result = await locationsService.importFromExcel(req.file.buffer);
     res.json(result);
   },
+
+  async geocode(req: Request, res: Response) {
+    const location = await locationsService.geocode(req.params.id);
+    res.json(location);
+  },
 };
 
 function sendXlsx(res: Response, buffer: Buffer, filename: string): void {

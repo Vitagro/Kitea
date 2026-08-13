@@ -16,4 +16,7 @@ export const env = {
   jwtSecret: requireEnv("JWT_SECRET", "dev-secret"),
   erpWebhookSecret: requireEnv("ERP_WEBHOOK_SECRET", "dev-secret"),
   erpBaseUrl: process.env.ERP_BASE_URL ?? "",
+  // Optionnelle : sans cette clé, /api/locations/:id/geocode répond 400.
+  // cf. README §7 pour l'obtenir (Google Cloud Console > Geocoding API).
+  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
 };

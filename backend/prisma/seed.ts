@@ -1,24 +1,34 @@
 import { LocationType, PrismaClient } from "@prisma/client";
+import { buildGoogleMapsSearchUrl } from "../src/common/utils/googleMaps";
 
 const prisma = new PrismaClient();
 
 // ---------------------------------------------------------------------------
 // Réseau KITEA — données compilées à partir de sources publiques (site
-// officiel kitea.com/maplist, presse logistique : Stratégies Logistique,
-// L'Economiste, BK Systèmes...).
+// officiel kitea.com, pages jaunes/annuaires marocains — Telecontact,
+// annuaire-horaire.com, Tiendeo, VisitRabat —, presse logistique :
+// Stratégies Logistique, L'Economiste, BK Systèmes).
 //
 // ⚠️ Limites connues :
-//  - kitea.com était inaccessible depuis cet environnement (proxy réseau) au
-//    moment de la collecte : cette liste est un échantillon représentatif
-//    (~18 magasins identifiés sur les ~24 annoncés), pas la liste exhaustive
-//    et à jour en temps réel.
-//  - Les coordonnées sont approximées au niveau de la ville (pas de service
-//    de géocodage disponible ici). Un léger décalage déterministe est
-//    appliqué aux sites partageant une même ville pour éviter la
-//    superposition des marqueurs sur la carte — À REMPLACER par un
-//    géocodage précis (Google/Mapbox Geocoding API) avant mise en
-//    production.
+//  - kitea.com et maps.google.com étaient inaccessibles depuis cet
+//    environnement (proxy réseau sandbox) au moment de la collecte : cette
+//    liste est un échantillon représentatif (~18 magasins sur ~23-24
+//    annoncés), pas la liste exhaustive vérifiée en direct sur Google Maps.
+//  - Le téléphone (+212 802 00 80 02) est le numéro d'accueil national
+//    unique KITEA (centre d'appel), pas une ligne directe par magasin.
+//  - Les horaires (09:00-22:00, 7j/7) sont la politique publiée pour la
+//    majorité des magasins Géant ; à vérifier au cas par cas.
+//  - Les coordonnées restent approximées au niveau de la ville (aucun accès
+//    à un service de géocodage depuis ce sandbox). Un `plusCode` Google est
+//    renseigné pour les 2 sites où il a pu être trouvé (Agadir, Laâyoune) à
+//    titre de référence — non décodé en coordonnées ici par prudence.
+//  - Utilisez POST /api/locations/:id/geocode (nécessite GOOGLE_MAPS_API_KEY,
+//    voir README §7) une fois déployé pour résoudre les coordonnées exactes.
 // ---------------------------------------------------------------------------
+
+const KITEA_HOTLINE = "+212 802 00 80 02";
+const KITEA_WEBSITE = "https://www.kitea.com";
+const STANDARD_STORE_HOURS = "Lun-Dim 09:00-22:00";
 
 interface SeedLocation {
   code: string;
@@ -29,6 +39,9 @@ interface SeedLocation {
   address?: string;
   operatorName?: string;
   storageAreaM2?: number;
+  phone?: string;
+  openingHoursText?: string;
+  plusCode?: string;
 }
 
 const CITY_COORDINATES: Record<string, [number, number]> = {
@@ -92,6 +105,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Casablanca",
     region: "Casablanca-Settat",
     address: "301 Bd Brahim Roudani, 20000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-CASA-ELJADIDARD",
@@ -99,7 +114,9 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Casablanca",
     region: "Casablanca-Settat",
-    address: "Route d'El Jadida, 20000",
+    address: "301, route d'El Jadida, Hay Batha, 20000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-CASA-CITY",
@@ -107,6 +124,8 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Casablanca",
     region: "Casablanca-Settat",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-RABAT-CITY",
@@ -114,6 +133,9 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Rabat",
     region: "Rabat-Salé-Kénitra",
+    address: "Arribat Center",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-RABAT-GEANT",
@@ -121,7 +143,9 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Rabat",
     region: "Rabat-Salé-Kénitra",
-    address: "Centre Commercial Marjane, Hay Riad",
+    address: "Route Bir Kacem, Hay Nahda, 10000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-MARRAKECH",
@@ -130,6 +154,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Marrakech",
     region: "Marrakech-Safi",
     address: "183, avenue Mohammed V, Guéliz, 40000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-MOHAMMEDIA",
@@ -138,6 +164,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Mohammedia",
     region: "Casablanca-Settat",
     address: "Centre commercial Marjane, 28830",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-KENITRA",
@@ -146,6 +174,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Kénitra",
     region: "Rabat-Salé-Kénitra",
     address: "Centre commercial Acima, 14060",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-AGADIR",
@@ -154,6 +184,9 @@ const LOCATIONS: SeedLocation[] = [
     city: "Agadir",
     region: "Souss-Massa",
     address: "80000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
+    plusCode: "CF75+978",
   },
   {
     code: "KTA-STO-FES",
@@ -162,6 +195,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Fès",
     region: "Fès-Meknès",
     address: "Route de Sefrou, 30100",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-TANGER",
@@ -170,6 +205,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Tanger",
     region: "Tanger-Tétouan-Al Hoceïma",
     address: "Commune Boukhalef, route de Rabat, 90060",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-OUJDA",
@@ -178,6 +215,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Oujda",
     region: "L'Oriental",
     address: "Parc d'activité commerciale Marjane, 60000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-LAAYOUNE",
@@ -186,6 +225,9 @@ const LOCATIONS: SeedLocation[] = [
     city: "Laâyoune",
     region: "Laâyoune-Sakia El Hamra",
     address: "70000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
+    plusCode: "4RQ9+XM",
   },
   {
     code: "KTA-STO-ELJADIDA",
@@ -193,7 +235,9 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "El Jadida",
     region: "Casablanca-Settat",
-    address: "Centre Commercial Marhaba, Avenue Mohammed VI",
+    address: "Centre Commercial Marhaba, Avenue Mohammed VI, 24000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-KHOURIBGA",
@@ -201,7 +245,9 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Khouribga",
     region: "Béni Mellal-Khénifra",
-    address: "Centre Commercial Acima, Bd Zellaqua",
+    address: "Centre Commercial Acima, Bd Zellaqua, 25000",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-BERRECHID",
@@ -210,6 +256,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Berrechid",
     region: "Casablanca-Settat",
     address: "Centre Commercial Acima, Bd Mohamed V",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-BENIMELLAL",
@@ -218,6 +266,8 @@ const LOCATIONS: SeedLocation[] = [
     city: "Béni Mellal",
     region: "Béni Mellal-Khénifra",
     address: "Centre commercial Acima",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
   {
     code: "KTA-STO-SAFI",
@@ -225,6 +275,8 @@ const LOCATIONS: SeedLocation[] = [
     type: "STORE",
     city: "Safi",
     region: "Marrakech-Safi",
+    phone: KITEA_HOTLINE,
+    openingHoursText: STANDARD_STORE_HOURS,
   },
 ];
 
@@ -252,6 +304,15 @@ async function seedLocations() {
         address: location.address,
         operatorName: location.operatorName,
         storageAreaM2: location.storageAreaM2,
+        phone: location.phone,
+        website: KITEA_WEBSITE,
+        openingHoursText: location.openingHoursText,
+        plusCode: location.plusCode,
+        googleMapsUrl: buildGoogleMapsSearchUrl({
+          name: location.name,
+          address: location.address,
+          city: location.city,
+        }),
         deliveryWindowStart: location.type === "STORE" ? "09:00" : "06:00",
         deliveryWindowEnd: location.type === "STORE" ? "21:00" : "20:00",
         operatingDays: "MON-SAT",

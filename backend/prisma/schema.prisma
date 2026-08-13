@@ -53,6 +53,14 @@ model Location {
   operatorName      String?      @map("operator_name")
   isActive          Boolean      @default(true) @map("is_active")
 
+  // Fiche détaillée / intégration Google Maps
+  phone             String?      // numéro public du site
+  website           String?      @default("https://www.kitea.com")
+  openingHoursText  String?      @map("opening_hours_text") // horaires client, ex: "Lun-Dim 09:00-22:00"
+  googleMapsUrl     String?      @map("google_maps_url") // lien de recherche/fiche Google Maps
+  googlePlaceId     String?      @map("google_place_id") // Place ID résolu via geocoding (si dispo)
+  plusCode          String?      @map("plus_code") // Open Location Code (Google), si connu
+
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
