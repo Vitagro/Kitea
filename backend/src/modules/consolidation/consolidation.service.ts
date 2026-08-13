@@ -85,6 +85,17 @@ export const consolidationService = {
 
     const reference = `SHP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Heure d'arrivée planifiée = la deadline la plus contraignante parmi les
+    // commandes consolidées (la plus proche `deliveryWindowEnd`) ; le départ
+    // est retro-planifié à partir du temps de trajet estimé. Sans ces deux
+    // valeurs, le suivi de ponctualité (PATCH /shipments/:id/delivery) ne
+    // peut jamais calculer ON_TIME/LATE.
+    const scheduledArrival = shipment.orders.reduce(
+      (earliest, order) => (order.deliveryWindowEnd < earliest ? order.deliveryWindowEnd : earliest),
+      shipment.orders[0].deliveryWindowEnd
+    );
+    const scheduledDeparture = new Date(scheduledArrival.getTime() - distance.durationMin * 60000);
+
     return prisma.shipment.create({
       data: {
         reference,
@@ -95,6 +106,8 @@ export const consolidationService = {
         totalWeightKg: shipment.totalWeightKg,
         fillRatePercent: shipment.fillRatePercent,
         theoreticalCost,
+        scheduledDeparture,
+        scheduledArrival,
         status: "PLANNED",
         orders: { connect: shipment.orders.map((o) => ({ id: o.id })) },
       },

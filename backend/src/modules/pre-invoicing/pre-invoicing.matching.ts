@@ -23,8 +23,20 @@ export function computeGap(
   }
 
   const gapAmount = round2(carrierAmount - theoreticalAmount);
-  const gapPercent =
-    theoreticalAmount === 0 ? 0 : round2((gapAmount / theoreticalAmount) * 100);
+
+  // Coût théorique nul (aucune règle tarifaire résolue, ou trajet gratuit) :
+  // le ratio n'a pas de sens. On ne masque pas silencieusement un écart —
+  // toute facture non nulle dans ce cas est un DISCREPANCY explicite plutôt
+  // qu'un "0% d'écart" trompeur qui laisserait passer le rapprochement.
+  if (theoreticalAmount === 0) {
+    return {
+      gapAmount,
+      gapPercent: 0,
+      matchingStatus: gapAmount === 0 ? "MATCHED" : "DISCREPANCY",
+    };
+  }
+
+  const gapPercent = round2((gapAmount / theoreticalAmount) * 100);
 
   const matchingStatus: MatchingStatus =
     Math.abs(gapPercent) <= toleranceThresholdPercent ? "MATCHED" : "DISCREPANCY";

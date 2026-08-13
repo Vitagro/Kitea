@@ -81,8 +81,18 @@ export async function parseWorkbookBuffer<T extends Record<string, unknown>>(
   return rows;
 }
 
+// Les colonnes d'import portent souvent un indice de format entre
+// parenthèses ("Type (STORE/WAREHOUSE/...)", "Fragile (OUI/NON)") qui
+// n'apparaît pas dans le fichier exporté correspondant ("Type", "Fragile").
+// On l'ignore pour la correspondance des en-têtes afin qu'un classeur
+// exporté (sans les indices) et le modèle d'import (avec indices) soient
+// tous deux reconnus — un cycle export → édition → réimport doit fonctionner
+// sans que l'utilisateur ait à renommer les colonnes.
 function normalizeHeader(header: string): string {
-  return header.trim().toLowerCase();
+  return header
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim()
+    .toLowerCase();
 }
 
 // --- Coercion de cellules Excel (exceljs renvoie des types variés selon le

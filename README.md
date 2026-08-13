@@ -176,9 +176,18 @@ Aucune table d'agrégation dédiée : les KPIs sont **calculés à la volée** (
 cd backend
 cp .env.example .env      # renseigner DATABASE_URL, PORT, etc.
 npm install
-npx prisma migrate dev    # crée le schéma en base
+npx prisma migrate dev    # applique backend/prisma/migrations/ (déjà versionnées dans ce repo)
 npx prisma db seed        # (optionnel) données de démonstration
 npm run dev                # démarre l'API sur http://localhost:4000
+```
+
+> Ce flux a été exécuté et vérifié en conditions réelles sur une base PostgreSQL locale (migration → seed → API → consolidation → suivi de livraison → KPIs → pré-facturation → export/import Excel → frontend Next.js dans un vrai navigateur). Deux bugs trouvés lors de ces tests ont été corrigés : les expéditions n'avaient jamais d'heure planifiée (donc la ponctualité ne se calculait jamais — corrigé dans `consolidation.service.ts`), et un fichier exporté ne pouvait pas être réimporté tel quel (en-têtes Excel non concordantes — corrigé dans `common/utils/excel.ts`). Voir `backend/src/**/*.test.ts` (`npm test`) pour les tests automatisés qui couvrent l'algorithme de consolidation, le calcul d'écart de pré-facturation et le calcul de distance.
+
+### Tests automatisés
+
+```bash
+cd backend
+npm test          # Jest — algorithme de consolidation, matching pré-facturation, calculateur de coûts, Haversine
 ```
 
 ### Frontend (`web/` — Next.js, frontend de référence)
@@ -274,12 +283,12 @@ Sans clé configurée, ces deux endpoints répondent une erreur explicite (`400`
 ## 8. Feuille de route (Roadmap)
 
 - [x] **Phase 0** — Cadrage, architecture, schéma de données, scaffolding du repo.
-- [ ] **Phase 1** — Module Cartographie : CRUD sites, carte interactive, fiches sites, matrice de distances (Haversine puis API routing externe).
-- [ ] **Phase 2** — Module Costing : configurateur de tarifs (CRUD grilles), calcul du coût théorique, comparatif vs coût prestataire, alertes de seuil.
-- [ ] **Phase 3** — Module Optimisation : algorithme de consolidation des commandes, sélection du véhicule, indicateur de taux de remplissage.
-- [ ] **Phase 4** — Module Pré-Facturation : génération automatique, workflow de validation, 3-way matching, exports comptables.
-- [x] **Phase 5 (partiel)** — Intégration ERP : webhook inbound temps réel + import en masse (lot JSON ou Excel) opérationnels ; authentification API et mapping avancé des référentiels restent à faire.
-- [x] **Phase 6 (partiel)** — Collaborateurs & KPIs : CRUD employés, suivi de livraison réel, classements magasins/livreurs/responsables de dépôt, indicateurs de coûts transport, migration frontend vers Next.js (`web/`), intégration Google Maps (géocodage + découverte automatique du réseau). Reste à faire : authentification/rôles (RBAC), audit trail, tests end-to-end, observabilité, CI/CD, retrait définitif du frontend Vite legacy.
+- [x] **Phase 1** — Module Cartographie : CRUD sites, carte interactive, fiches sites, matrice de distances (Haversine). Vérifié en local (20 sites réels, carte + popups fonctionnels). Reste à faire : API de routing externe pour des distances routières précises (Haversine est une approximation à vol d'oiseau).
+- [x] **Phase 2** — Module Costing : configurateur de tarifs (CRUD grilles), calcul du coût théorique. Vérifié en local (règle au km résolue et appliquée sur une expédition réelle). Reste à faire : alertes automatiques de dépassement de seuil (le calcul d'écart existe côté pré-facturation, l'alerte proactive côté configurateur reste à ajouter).
+- [x] **Phase 3** — Module Optimisation : algorithme de consolidation des commandes, sélection du véhicule, taux de remplissage. Vérifié en local avec tests automatisés (regroupement, bin packing, sélection véhicule, calcul de taux de remplissage).
+- [x] **Phase 4** — Module Pré-Facturation : génération automatique, 3-way matching, workflow de validation. Vérifié en local (génération, rattachement facture prestataire, détection d'écart hors tolérance, approbation). Reste à faire : exports comptables.
+- [x] **Phase 5 (partiel)** — Intégration ERP : webhook inbound temps réel + import en masse (lot JSON ou Excel) opérationnels, vérifiés en local (doublon et référence inconnue correctement rejetés sans bloquer le lot) ; authentification API et mapping avancé des référentiels restent à faire.
+- [x] **Phase 6 (partiel)** — Collaborateurs & KPIs : CRUD employés, suivi de livraison réel, classements magasins/livreurs/responsables de dépôt, indicateurs de coûts transport, migration frontend vers Next.js (`web/`), intégration Google Maps (géocodage + découverte automatique du réseau). Chaîne complète vérifiée en local (commande → consolidation → livraison → ponctualité → classements). Reste à faire : authentification/rôles (RBAC), audit trail, observabilité, CI/CD, retrait définitif du frontend Vite legacy, déploiement réel (Supabase/Render/Vercel) et clé Google Maps en production.
 
 ## 9. Contribution
 

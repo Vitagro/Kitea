@@ -46,7 +46,7 @@ export function KiteaNetworkMap() {
 
   return (
     <div className="relative h-[calc(100vh-2rem)] w-full rounded-xl overflow-hidden border border-slate-200">
-      <div className="absolute z-[1000] top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow p-3 space-y-2">
+      <div className="absolute z-[1000] top-4 left-16 bg-white/95 backdrop-blur rounded-lg shadow p-3 space-y-2">
         <p className="text-xs font-semibold text-slate-500 uppercase">Type de site</p>
         {ALL_TYPES.map((type) => (
           <label key={type} className="flex items-center gap-2 text-sm cursor-pointer">
