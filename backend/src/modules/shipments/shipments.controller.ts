@@ -13,4 +13,9 @@ export const shipmentsController = {
     const shipment = await shipmentsService.getById(req.params.id);
     res.json(shipment);
   },
+
+  async recordDelivery(req: Request, res: Response) {
+    const shipment = await shipmentsService.recordDelivery(req.params.id, req.body);
+    res.json(shipment);
+  },
 };

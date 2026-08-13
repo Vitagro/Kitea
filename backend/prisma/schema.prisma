@@ -39,6 +39,7 @@ model Location {
   country           String       @default("MA")
 
   // Capacités
+  capacityPallets   Int?         @map("capacity_pallets") // capacité de stockage en emplacements palettes (unité logistique de référence)
   storageAreaM2     Float?       @map("storage_area_m2") // capacité m²
   storageVolumeM3   Float?       @map("storage_volume_m3") // capacité m³
   bufferStockUnits  Int?         @map("buffer_stock_units")
@@ -58,7 +59,7 @@ model Location {
   website           String?      @default("https://www.kitea.com")
   openingHoursText  String?      @map("opening_hours_text") // horaires client, ex: "Lun-Dim 09:00-22:00"
   googleMapsUrl     String?      @map("google_maps_url") // lien de recherche/fiche Google Maps
-  googlePlaceId     String?      @map("google_place_id") // Place ID résolu via geocoding (si dispo)
+  googlePlaceId     String?      @unique @map("google_place_id") // Place ID résolu via geocoding (si dispo)
   plusCode          String?      @map("plus_code") // Open Location Code (Google), si connu
 
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -71,6 +72,7 @@ model Location {
   distancesFrom         DistanceMatrix[] @relation("DistanceFrom")
   distancesTo            DistanceMatrix[] @relation("DistanceTo")
   storagePricingRules    PricingRule[]   @relation("StorageLocationPricing")
+  employees               Employee[]
 
   @@map("locations")
   @@index([type])
@@ -96,6 +98,40 @@ model DistanceMatrix {
   @@map("distance_matrix")
   @@index([fromLocationId])
   @@index([toLocationId])
+}
+
+// -----------------------------------------------------------------------------
+// MODULE 6 — Collaborateurs & KPIs
+// -----------------------------------------------------------------------------
+
+enum EmployeeRole {
+  STORE_MANAGER // Responsable magasin
+  WAREHOUSE_MANAGER // Responsable dépôt / hub
+  DRIVER // Livreur / chauffeur
+  DISPATCHER // Planificateur transport
+  HEAD_OF_LOGISTICS
+}
+
+model Employee {
+  id           String       @id @default(uuid())
+  firstName    String       @map("first_name")
+  lastName     String       @map("last_name")
+  email        String       @unique
+  phone        String?
+  role         EmployeeRole
+  locationId   String?      @map("location_id") // site de rattachement (magasin, dépôt...)
+  hireDate     DateTime?    @map("hire_date")
+  isActive     Boolean      @default(true) @map("is_active")
+
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  location          Location?  @relation(fields: [locationId], references: [id])
+  shipmentsAsDriver Shipment[] @relation("ShipmentDriver")
+
+  @@map("employees")
+  @@index([role])
+  @@index([locationId])
 }
 
 // -----------------------------------------------------------------------------
@@ -242,6 +278,14 @@ enum ShipmentStatus {
   CANCELLED
 }
 
+// Performance de livraison réelle vs planifiée — alimente le module KPI
+// (classements magasins/livreurs/dépôts, taux de ponctualité).
+enum DeliveryPerformance {
+  ON_TIME
+  LATE
+  CANCELLED
+}
+
 // Regroupement de commandes affecté à un véhicule/transporteur
 model Shipment {
   id                  String         @id @default(uuid())
@@ -252,6 +296,7 @@ model Shipment {
 
   vehicleTypeId       String?        @map("vehicle_type_id")
   carrierId           String?        @map("carrier_id")
+  driverId            String?        @map("driver_id") // livreur affecté (Employee, role DRIVER)
 
   totalVolumeM3       Float          @map("total_volume_m3")
   totalWeightKg        Float         @map("total_weight_kg")
@@ -261,6 +306,9 @@ model Shipment {
 
   scheduledDeparture    DateTime?     @map("scheduled_departure")
   scheduledArrival       DateTime?    @map("scheduled_arrival")
+  actualDeparture        DateTime?    @map("actual_departure")
+  actualArrival           DateTime?   @map("actual_arrival")
+  deliveryPerformance     DeliveryPerformance? @map("delivery_performance") // calculé à l'arrivée réelle (cf. shipments.service)
 
   theoreticalCost       Float?        @map("theoretical_cost") // coût calculé par l'app
   currency              String        @default("MAD")
@@ -272,12 +320,15 @@ model Shipment {
   destination            Location     @relation("ShipmentDestination", fields: [destinationLocationId], references: [id])
   vehicleType            VehicleType? @relation(fields: [vehicleTypeId], references: [id])
   carrier                Carrier?     @relation(fields: [carrierId], references: [id])
+  driver                 Employee?    @relation("ShipmentDriver", fields: [driverId], references: [id])
 
   orders                 Order[]
   preInvoice              PreInvoice?
 
   @@map("shipments")
   @@index([status])
+  @@index([driverId])
+  @@index([deliveryPerformance])
 }
 
 // -----------------------------------------------------------------------------

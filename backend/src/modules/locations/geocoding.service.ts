@@ -61,3 +61,66 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult> {
     placeId: best.place_id,
   };
 }
+
+export interface PlaceSearchResult {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  latitude: number;
+  longitude: number;
+  businessStatus?: string;
+}
+
+interface GooglePlacesTextSearchResponse {
+  status: string;
+  error_message?: string;
+  results: {
+    place_id: string;
+    name: string;
+    formatted_address: string;
+    business_status?: string;
+    geometry: { location: { lat: number; lng: number } };
+  }[];
+  next_page_token?: string;
+}
+
+// Découverte en masse : recherche tous les établissements Google Maps
+// correspondant à la requête (ex: "KITEA Maroc magasin meuble") — sert de
+// base à la synchronisation automatique du réseau de sites depuis Google
+// Maps. Même limitation que geocodeAddress : nécessite GOOGLE_MAPS_API_KEY,
+// et l'appel réseau ne peut pas être exercé depuis le sandbox de dev.
+export async function searchPlacesText(query: string): Promise<PlaceSearchResult[]> {
+  if (!env.googleMapsApiKey) {
+    throw AppError.badRequest(
+      "GOOGLE_MAPS_API_KEY non configurée côté serveur — voir README §7 pour l'activer."
+    );
+  }
+
+  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+  url.searchParams.set("query", query);
+  url.searchParams.set("region", "ma");
+  url.searchParams.set("key", env.googleMapsApiKey);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw AppError.badRequest(`Échec de l'appel à l'API Google Places (HTTP ${response.status})`);
+  }
+
+  const payload = (await response.json()) as GooglePlacesTextSearchResponse;
+  if (payload.status !== "OK" && payload.status !== "ZERO_RESULTS") {
+    throw AppError.badRequest(
+      `Recherche Google Places échouée (statut: ${payload.status}${
+        payload.error_message ? ` — ${payload.error_message}` : ""
+      })`
+    );
+  }
+
+  return payload.results.map((result) => ({
+    placeId: result.place_id,
+    name: result.name,
+    formattedAddress: result.formatted_address,
+    latitude: result.geometry.location.lat,
+    longitude: result.geometry.location.lng,
+    businessStatus: result.business_status,
+  }));
+}

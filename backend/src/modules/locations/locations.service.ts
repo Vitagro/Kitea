@@ -8,7 +8,7 @@ import {
   parseWorkbookBuffer,
 } from "../../common/utils/excel";
 import { buildGoogleMapsPlaceUrl, buildGoogleMapsSearchUrl } from "../../common/utils/googleMaps";
-import { geocodeAddress } from "./geocoding.service";
+import { geocodeAddress, searchPlacesText } from "./geocoding.service";
 import { LOCATION_EXPORT_COLUMNS, LOCATION_IMPORT_COLUMNS, toLocationExportRow } from "./locations.excel";
 import {
   CreateLocationInput,
@@ -90,6 +90,79 @@ export const locationsService = {
     });
   },
 
+  // Découverte automatique du réseau depuis Google Maps : recherche tous les
+  // établissements correspondant à `query`, puis pour chacun :
+  //  - déjà connu (googlePlaceId existant)   -> UPDATE (coordonnées/adresse)
+  //  - fermé/introuvable côté Google         -> SKIP
+  //  - nouveau                                -> CREATE (type STORE par défaut,
+  //    à corriger manuellement si c'est en fait un dépôt/hub)
+  // `dryRun=true` (par défaut) ne fait qu'une simulation : rien n'est écrit,
+  // seule la liste des actions proposées est renvoyée pour validation.
+  async syncFromGooglePlaces(query: string, dryRun = true) {
+    const places = await searchPlacesText(query);
+    const items: {
+      placeId: string;
+      name: string;
+      formattedAddress: string;
+      action: "CREATE" | "UPDATE" | "SKIP";
+      reason?: string;
+      locationCode?: string;
+    }[] = [];
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const place of places) {
+      if (place.businessStatus && place.businessStatus !== "OPERATIONAL") {
+        items.push({ ...pick(place), action: "SKIP", reason: `Statut Google: ${place.businessStatus}` });
+        skipped += 1;
+        continue;
+      }
+
+      const existing = await prisma.location.findUnique({ where: { googlePlaceId: place.placeId } });
+
+      if (existing) {
+        updated += 1;
+        items.push({ ...pick(place), action: "UPDATE", locationCode: existing.code });
+        if (!dryRun) {
+          await prisma.location.update({
+            where: { id: existing.id },
+            data: {
+              latitude: place.latitude,
+              longitude: place.longitude,
+              address: place.formattedAddress,
+              googleMapsUrl: buildGoogleMapsPlaceUrl(place.placeId),
+            },
+          });
+        }
+        continue;
+      }
+
+      const code = `KTA-GMB-${place.placeId.slice(-10)}`;
+      created += 1;
+      items.push({ ...pick(place), action: "CREATE", locationCode: code });
+
+      if (!dryRun) {
+        await prisma.location.create({
+          data: {
+            code,
+            name: place.name,
+            type: "STORE",
+            city: guessCityFromAddress(place.formattedAddress),
+            address: place.formattedAddress,
+            latitude: place.latitude,
+            longitude: place.longitude,
+            googlePlaceId: place.placeId,
+            googleMapsUrl: buildGoogleMapsPlaceUrl(place.placeId),
+          },
+        });
+      }
+    }
+
+    return { query, dryRun, totalFound: places.length, created, updated, skipped, items };
+  },
+
   async exportToExcel(): Promise<Buffer> {
     const locations = await prisma.location.findMany({ orderBy: { name: "asc" } });
     return buildWorkbookBuffer("Sites KITEA", LOCATION_EXPORT_COLUMNS, locations.map(toLocationExportRow));
@@ -156,3 +229,19 @@ export const locationsService = {
     return result;
   },
 };
+
+function pick(place: { placeId: string; name: string; formattedAddress: string }) {
+  return { placeId: place.placeId, name: place.name, formattedAddress: place.formattedAddress };
+}
+
+// Heuristique best-effort : une adresse formatée Google ("183 Avenue
+// Mohammed V, Guéliz, 40000 Marrakech, Maroc") place généralement la ville
+// juste avant le pays. À vérifier/corriger manuellement après import.
+function guessCityFromAddress(formattedAddress: string): string {
+  const parts = formattedAddress.split(",").map((p) => p.trim());
+  const withoutCountry = parts.filter((p) => !/maroc|morocco/i.test(p));
+  const last = withoutCountry[withoutCountry.length - 1];
+  if (!last) return "À vérifier";
+  // Retire un éventuel code postal numérique en tête ("40000 Marrakech" -> "Marrakech").
+  return last.replace(/^\d+\s*/, "") || "À vérifier";
+}

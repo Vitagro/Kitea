@@ -58,6 +58,15 @@ export const locationsController = {
     const location = await locationsService.geocode(req.params.id);
     res.json(location);
   },
+
+  async syncGooglePlaces(req: Request, res: Response) {
+    const { query, dryRun } = req.body as { query?: string; dryRun?: boolean };
+    const result = await locationsService.syncFromGooglePlaces(
+      query || "KITEA magasin meuble Maroc",
+      dryRun !== false
+    );
+    res.json(result);
+  },
 };
 
 function sendXlsx(res: Response, buffer: Buffer, filename: string): void {

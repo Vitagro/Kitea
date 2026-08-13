@@ -9,6 +9,7 @@ export const locationsRouter = Router();
 
 locationsRouter.get("/", asyncHandler(locationsController.list));
 locationsRouter.get("/export", asyncHandler(locationsController.exportExcel));
+locationsRouter.post("/sync-google-places", asyncHandler(locationsController.syncGooglePlaces));
 locationsRouter.get("/import/template", asyncHandler(locationsController.downloadTemplate));
 locationsRouter.post("/import", uploadExcel.single("file"), asyncHandler(locationsController.importExcel));
 locationsRouter.get("/:id", asyncHandler(locationsController.getById));

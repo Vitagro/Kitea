@@ -14,12 +14,18 @@ import { erpIntegrationRouter } from "./modules/erp-integration/erp-integration.
 import { vehicleTypesRouter } from "./modules/vehicle-types/vehicle-types.routes";
 import { carriersRouter } from "./modules/carriers/carriers.routes";
 import { shipmentsRouter } from "./modules/shipments/shipments.routes";
+import { employeesRouter } from "./modules/employees/employees.routes";
+import { kpiRouter } from "./modules/kpi/kpi.routes";
 
 export function createApp(): Express {
   const app = express();
 
+  // CORS_ORIGIN accepte une liste séparée par des virgules (ex: le frontend
+  // Next.js en dev sur :3000 et l'ancien frontend Vite sur :5173).
+  const allowedOrigins = env.corsOrigin.split(",").map((origin) => origin.trim());
+
   app.use(helmet());
-  app.use(cors({ origin: env.corsOrigin }));
+  app.use(cors({ origin: allowedOrigins }));
   app.use(express.json({ limit: "5mb" }));
   app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
 
@@ -37,6 +43,8 @@ export function createApp(): Express {
   app.use("/api/vehicle-types", vehicleTypesRouter);
   app.use("/api/carriers", carriersRouter);
   app.use("/api/shipments", shipmentsRouter);
+  app.use("/api/employees", employeesRouter);
+  app.use("/api/kpi", kpiRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
