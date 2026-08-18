@@ -1,25 +1,12 @@
 import { Router } from "express";
 import { asyncHandler } from "../../common/utils/asyncHandler";
-import { validateRequest } from "../../common/middleware/validateRequest";
 import { uploadExcel } from "../../common/middleware/upload";
 import { erpIntegrationController } from "./erp-integration.controller";
-import { importOrdersBatchSchema, inboundOrderWebhookSchema } from "./erp-integration.schema";
 
+// Routes accédées depuis l'UI (session utilisateur, requireAuth global dans
+// app.ts) — distinct de erp-integration.webhook.routes.ts (appels ERP
+// serveur-à-serveur, secret partagé, montées avant requireAuth).
 export const erpIntegrationRouter = Router();
-
-// Webhook INBOUND temps réel : une commande/réassort/transfert à la fois.
-erpIntegrationRouter.post(
-  "/webhooks/orders",
-  validateRequest(inboundOrderWebhookSchema),
-  asyncHandler(erpIntegrationController.inboundOrder)
-);
-
-// Import en masse depuis l'ERP : lot JSON (synchronisation ponctuelle/planifiée).
-erpIntegrationRouter.post(
-  "/import/orders",
-  validateRequest(importOrdersBatchSchema),
-  asyncHandler(erpIntegrationController.importOrdersBatch)
-);
 
 // Import en masse depuis l'ERP : fichier Excel (export ERP standard).
 erpIntegrationRouter.post(

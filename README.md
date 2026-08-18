@@ -37,6 +37,7 @@ Ce produit s'adresse en priorité à la **Direction Logistique (Head of Logistic
 | 6 | **Import / Export Excel** | Écran Commandes : export `.xlsx` du carnet de commandes, import en masse (modèle Excel fourni) pour la saisie manuelle ou la reprise de données. |
 | 7 | **Collaborateurs & KPIs** | Fiches collaborateurs (magasin, dépôt, livreur, planificateur), suivi de livraison réel (chauffeur + horodatage départ/arrivée), calcul automatique de la ponctualité, dashboard de KPIs (coûts de transport, taux à l'heure/en retard) et classements magasins/livreurs/responsables de dépôt. |
 | 8 | **Synchronisation Google Maps** | Découverte automatique des sites KITEA déjà référencés sur Google Maps (Places API), géocodage précis d'un site à partir de son adresse (Geocoding API), champ de capacité de stockage (emplacements palettes) par site. |
+| 9 | **Authentification & Gestion des utilisateurs** | Comptes applicatifs (email/mot de passe, JWT), 8 rôles couvrant la distribution/supply chain (Administrateur, Direction logistique, Planificateur transport, Responsable dépôt, Responsable magasin, Contrôle de gestion, Livreur, Lecture seule), panel d'administration réservé aux Administrateurs (`/users`), rattachement optionnel d'un compte à une fiche Collaborateur. Toutes les routes `/api/*` exigent une session valide, à l'exception de `/api/auth/login` (public) et des webhooks ERP serveur-à-serveur (secret partagé). |
 
 ## 4. Architecture technique
 
@@ -208,8 +209,9 @@ npm run dev                # démarre l'app sur http://localhost:3000
 | `DATABASE_URL` / `DIRECT_URL` | backend/.env | Connexion PostgreSQL Supabase (pooled / directe) |
 | `PORT` | backend/.env | Port de l'API (défaut 4000) |
 | `CORS_ORIGIN` | backend/.env | Origines autorisées, séparées par des virgules (Next.js :3000, Vite legacy :5173) |
-| `JWT_SECRET` | backend/.env | Secret de signature des tokens |
-| `ERP_WEBHOOK_SECRET` | backend/.env | Secret de vérification des webhooks entrants ERP |
+| `JWT_SECRET` | backend/.env | Secret de signature des tokens (authentification — voir module 9) |
+| `ERP_WEBHOOK_SECRET` | backend/.env | Secret de vérification des appels serveur-à-serveur ERP (header `X-Webhook-Secret` sur `/api/erp/webhooks/orders` et `/api/erp/import/orders`) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | backend/.env (seed uniquement) | Identifiants du compte admin de bootstrap créé par `prisma db seed` — défaut `admin@kitea.ma` / `ChangeMe123!` si non renseignées ; à changer après la première connexion |
 | `GOOGLE_MAPS_API_KEY` | backend/.env | Optionnelle — active le géocodage précis et la synchronisation Google Places (voir §7.4) |
 | `NEXT_PUBLIC_API_BASE_URL` | web/.env | URL de base de l'API consommée par le frontend Next.js |
 | `NEXT_PUBLIC_MAP_TILE_URL` | web/.env | URL des tuiles cartographiques (OSM/Mapbox) |

@@ -20,4 +20,12 @@ export class AppError extends Error {
   static conflict(message: string): AppError {
     return new AppError(message, 409);
   }
+
+  static unauthorized(message = "Authentification requise"): AppError {
+    return new AppError(message, 401);
+  }
+
+  static forbidden(message = "Accès refusé"): AppError {
+    return new AppError(message, 403);
+  }
 }

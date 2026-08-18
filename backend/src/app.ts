@@ -4,6 +4,9 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env";
 import { errorHandler, notFoundHandler } from "./common/middleware/errorHandler";
+import { requireAuth, requireRole } from "./common/middleware/requireAuth";
+import { authRouter } from "./modules/auth/auth.routes";
+import { usersRouter } from "./modules/users/users.routes";
 import { locationsRouter } from "./modules/locations/locations.routes";
 import { distanceRouter } from "./modules/distance/distance.routes";
 import { pricingRouter } from "./modules/pricing/pricing.routes";
@@ -11,6 +14,7 @@ import { ordersRouter } from "./modules/orders/orders.routes";
 import { consolidationRouter } from "./modules/consolidation/consolidation.routes";
 import { preInvoicingRouter } from "./modules/pre-invoicing/pre-invoicing.routes";
 import { erpIntegrationRouter } from "./modules/erp-integration/erp-integration.routes";
+import { erpWebhookRouter } from "./modules/erp-integration/erp-integration.webhook.routes";
 import { vehicleTypesRouter } from "./modules/vehicle-types/vehicle-types.routes";
 import { carriersRouter } from "./modules/carriers/carriers.routes";
 import { shipmentsRouter } from "./modules/shipments/shipments.routes";
@@ -33,6 +37,17 @@ export function createApp(): Express {
     res.json({ status: "ok", service: "kitea-logistics-backend" });
   });
 
+  // POST /api/auth/login est le seul point d'entrée /api public ; GET /me
+  // s'auto-protège via requireAuth dans auth.routes.ts.
+  app.use("/api/auth", authRouter);
+
+  // Appels serveur-à-serveur depuis l'ERP (secret partagé, pas de session
+  // utilisateur) — montés avant le requireAuth global ci-dessous.
+  app.use("/api/erp", erpWebhookRouter);
+
+  // Toutes les routes montées après cette ligne exigent une session valide.
+  app.use("/api", requireAuth);
+
   app.use("/api/locations", locationsRouter);
   app.use("/api/distance-matrix", distanceRouter);
   app.use("/api/pricing-rules", pricingRouter);
@@ -45,6 +60,7 @@ export function createApp(): Express {
   app.use("/api/shipments", shipmentsRouter);
   app.use("/api/employees", employeesRouter);
   app.use("/api/kpi", kpiRouter);
+  app.use("/api/users", requireRole("SUPER_ADMIN"), usersRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

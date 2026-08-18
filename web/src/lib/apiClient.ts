@@ -1,3 +1,5 @@
+import { clearToken, getToken } from "./authToken";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
 
 export class ApiError extends Error {
@@ -22,8 +24,17 @@ function buildQueryString(params?: Record<string, string | number | boolean | un
   return query ? `?${query}` : "";
 }
 
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getToken();
+  return { ...extra, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
+
+  // Session expirée/invalide : on efface le token, la prochaine navigation
+  // (ou le AuthGuard) renverra l'utilisateur vers /login.
+  if (response.status === 401) clearToken();
 
   const contentType = response.headers.get("content-type") ?? "";
   const isJson = contentType.includes("application/json");
@@ -40,14 +51,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
 // bien depuis des Server Components que des Client Components Next.js.
 export const apiClient = {
   async get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}${buildQueryString(params)}`, { cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}${path}${buildQueryString(params)}`, {
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     return handleResponse<T>(response);
   },
 
   async post<T>(path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: "POST",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: authHeaders(body ? { "Content-Type": "application/json" } : undefined),
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
     });
@@ -57,7 +71,7 @@ export const apiClient = {
   async patch<T>(path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: "PATCH",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: authHeaders(body ? { "Content-Type": "application/json" } : undefined),
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
     });
@@ -65,19 +79,31 @@ export const apiClient = {
   },
 
   async delete<T>(path: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE", cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "DELETE",
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     return handleResponse<T>(response);
   },
 
   async upload<T>(path: string, file: File, fieldName = "file"): Promise<T> {
     const formData = new FormData();
     formData.append(fieldName, file);
-    const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST", body: formData, cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      body: formData,
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     return handleResponse<T>(response);
   },
 
   async downloadBlob(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}${path}${buildQueryString(params)}`, { cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}${path}${buildQueryString(params)}`, {
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     if (!response.ok) throw new ApiError(response.status, `Erreur HTTP ${response.status}`);
     return response.blob();
   },

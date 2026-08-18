@@ -128,10 +128,44 @@ model Employee {
 
   location          Location?  @relation(fields: [locationId], references: [id])
   shipmentsAsDriver Shipment[] @relation("ShipmentDriver")
+  user              User?
 
   @@map("employees")
   @@index([role])
   @@index([locationId])
+}
+
+// Comptes applicatifs (authentification) — distincts des collaborateurs
+// métier (Employee) mais optionnellement rattachés à l'un d'eux (ex: un
+// livreur qui a aussi un compte pour voir ses tournées).
+enum UserRole {
+  SUPER_ADMIN
+  HEAD_OF_LOGISTICS
+  DISPATCHER
+  WAREHOUSE_MANAGER
+  STORE_MANAGER
+  FINANCE_CONTROLLER
+  DRIVER
+  VIEWER
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         UserRole
+  isActive     Boolean   @default(true) @map("is_active")
+  employeeId   String?   @unique @map("employee_id")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@map("users")
+  @@index([role])
 }
 
 // -----------------------------------------------------------------------------

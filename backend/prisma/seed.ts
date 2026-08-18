@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { LocationType, PrismaClient } from "@prisma/client";
 import { buildGoogleMapsSearchUrl } from "../src/common/utils/googleMaps";
 
@@ -362,6 +363,23 @@ async function main() {
       validFrom: new Date("2026-01-01"),
     },
   });
+
+  // Compte admin de bootstrap — permet la toute première connexion.
+  // Personnalisable via ADMIN_EMAIL/ADMIN_PASSWORD ; à changer après coup.
+  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@kitea.ma";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash: await bcrypt.hash(adminPassword, 10),
+        fullName: "Administrateur KITEA",
+        role: "SUPER_ADMIN",
+      },
+    });
+    console.log(`Compte admin créé : ${adminEmail} / ${adminPassword} (à changer après connexion)`);
+  }
 
   console.log("Seed terminé:", {
     locations: locationsCount,

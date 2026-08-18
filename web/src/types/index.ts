@@ -143,3 +143,25 @@ export interface Employee {
   hireDate?: string | null;
   isActive: boolean;
 }
+
+export type UserRole =
+  | "SUPER_ADMIN"
+  | "HEAD_OF_LOGISTICS"
+  | "DISPATCHER"
+  | "WAREHOUSE_MANAGER"
+  | "STORE_MANAGER"
+  | "FINANCE_CONTROLLER"
+  | "DRIVER"
+  | "VIEWER";
+
+export interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  isActive: boolean;
+  employeeId?: string | null;
+  employee?: Pick<Employee, "id" | "firstName" | "lastName"> | null;
+  lastLoginAt?: string | null;
+  createdAt: string;
+}
